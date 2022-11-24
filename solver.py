@@ -3,10 +3,11 @@ import numpy as np
 from math import degrees
 
 class Node:
-    def __init__(self, id, x, y) -> float:
+    def __init__(self, id, x, y, free_degrees) -> float:
         self.id = id
         self.x = x
         self.y = y
+        self.free_degrees = free_degrees
 
     def __str__(self) -> str:
         return f'Node({self.id}, x:{self.x}, y:{self.y})'
@@ -49,6 +50,24 @@ class Element:
         
         return np.array(indexes_list)
 
+    def __calc_internal_tension(self, u) -> float:
+        c, s = self.calc_c_s()
+        T = np.array([-c, -s, c, s])
+        return np.dot((self.y_modulos / self.dist) * T, u)
+
+    def calc_internal_tension_and_force(self, u):
+        internal_tension = self.__calc_internal_tension(u)
+        return (internal_tension, internal_tension * self.area)
+    
+    def calc_internal_deformation(self, u):
+        c, s = self.calc_c_s()
+        T = np.array([-c, -s, c, s])
+        return np.dot((1 / self.dist) * T, u)
+
+
+    def degrees_of_freedom(self):
+        return (*self.n1.free_degrees, *self.n2.free_degrees)
+
 class Solver:
 
     def __init__(self, in_path, out_path) -> None:
@@ -66,16 +85,28 @@ class Solver:
 
     def enumerate_elements(self):
         self.elements = []
+        self.nodes = []
+        db = 0
+        for i in range(self.nn):
+            n = Node(self.Inc[i, 0], self.N[0, int(self.Inc[i, 0]-1)], self.N[1, int(self.Inc[i, 0]-1)], (db, db + 1))
+            self.nodes.append(n)
+            db += 2
+
         for i in range(self.nm):
-            n1 = Node(self.Inc[i, 0], self.N[0, int(self.Inc[i, 0]-1)], self.N[1, int(self.Inc[i, 0]-1)])
-            n2 = Node(self.Inc[i, 1], self.N[0, int(self.Inc[i, 1]-1)], self.N[1, int(self.Inc[i, 1]-1)])
+            # n1 = Node(self.Inc[i, 0], self.N[0, int(self.Inc[i, 0]-1)], self.N[1, int(self.Inc[i, 0]-1)], (db, db+1))
+            # db += 2
+            # n2 = Node(self.Inc[i, 1], self.N[0, int(self.Inc[i, 1]-1)], self.N[1, int(self.Inc[i, 1]-1)], (db, db+1))
+            # db += 2
+            n1 = self.nodes[i % int(self.nn)]
+            n2 = self.nodes[(i+1) % int(self.nn)]
             self.elements.append(Element(n1, n2, self.Inc[i, 2], self.Inc[i, 3], i+1))
     
     def calc_global_rigidity_matrix(self) -> np.array:
         K = np.zeros((self.nn * 2, self.nn * 2))
         for element in self.elements:
             K_e = element.calc_rigidity_matrix()
-            element_indexes = element.element_indexes(self.nn)
+            # element_indexes = element.element_indexes(self.nn)
+            element_indexes = element.degrees_of_freedom()
 
             for i, g_i in enumerate(element_indexes):
                 for j, g_j in enumerate(element_indexes):
@@ -99,6 +130,21 @@ class Solver:
         for i, restrain in enumerate(self.R):
             F = np.delete(F, int(restrain - i), 0)
         return np.linalg.solve(k_g, F)
+
+
+    def full_displacement_matrix(self, u) -> np.array:
+        """
+        Add the displacement of the restrained nodes to the displacement matrix
+        """
+        u_full = np.zeros((self.nn * 2, 1))
+        j = 0
+        for i in range(self.nn * 2):
+            if i in self.R:
+                u_full[i] = 0
+            else:
+                u_full[i] = u[j]
+                j += 1
+        return u_full
     
     def calc_reactions(self, U, K) -> np.array:
         """
@@ -110,16 +156,47 @@ class Solver:
                 U_linha[i] = U[i - len(self.R[self.R < i])]
         return np.matmul(K, U_linha)
 
+    def calc_internal_tensions_forces(self, U) -> np.array:
+        tensions = np.zeros(self.nm)
+        forces = np.zeros(self.nm)
+        for i, element in enumerate(self.elements):
+            df = element.degrees_of_freedom()
+            valores = np.array([U[df[0], 0], U[df[1], 0], U[df[2], 0], U[df[3], 0]])
+            tensions[i], forces[i] = element.calc_internal_tension_and_force(valores)
+        return tensions, forces
+
+    def calc_internal_deformations(self, U) -> np.array:
+        deformations = np.zeros(self.nm)
+        for i, element in enumerate(self.elements):
+            df = element.degrees_of_freedom()
+            valores = np.array([U[df[0], 0], U[df[1], 0], U[df[2], 0], U[df[3], 0]])
+            deformations[i] = element.calc_internal_deformation(valores)
+        return deformations
+
+
+    def solve(self):
+        # Calcula a matriz de rigidez global
+        K = self.calc_global_rigidity_matrix()
+        # Aplica as condicoes de contorno
+        rest = self.apply_restraints(K)
+        # Calcula a matriz de deslocamentos
+        U = self.calc_displacement(rest)
+        full_u = self.full_displacement_matrix(U)
+        # Calcula as reacoes
+        F = self.calc_reactions(U, K)
+        Ft = np.zeros((self.nr, 1))
+        for i in range(self.nr):
+            Ft[i, 0] = F[int(self.R[i]), 0]
+
+        int_tensions, int_forces = self.calc_internal_tensions_forces(full_u)
+        int_deformations = self.calc_internal_deformations(full_u)
+
+        geraSaida(self.out_path, Ft, full_u, int_deformations, int_forces, int_tensions)
+
             
 
 
 
 if __name__ == "__main__":
     solver = Solver("entrada.xlsx", "saida.txt")
-    # plota(solver.N, solver.Inc)
-    K = solver.calc_global_rigidity_matrix()
-    rest = solver.apply_restraints(K)
-    U = solver.calc_displacement(rest)
-    F = solver.calc_reactions(U, K)
-    for i in range(len(solver.R)):
-        print(f"R{i + 1} = {F[int(solver.R[i])]}")
+    solver.solve()

@@ -1,6 +1,7 @@
 from funcoesTermosol import *
 import numpy as np
 from math import degrees
+from metodoJacob_Gauss import met_gauss
 
 class Node:
     def __init__(self, id, x, y, free_degrees) -> float:
@@ -88,17 +89,13 @@ class Solver:
         self.nodes = []
         db = 0
         for i in range(self.nn):
-            n = Node(self.Inc[i, 0], self.N[0, int(self.Inc[i, 0]-1)], self.N[1, int(self.Inc[i, 0]-1)], (db, db + 1))
+            n = Node(i + 1, self.N[0, i], self.N[1, i], (db, db + 1))
             self.nodes.append(n)
             db += 2
 
         for i in range(self.nm):
-            # n1 = Node(self.Inc[i, 0], self.N[0, int(self.Inc[i, 0]-1)], self.N[1, int(self.Inc[i, 0]-1)], (db, db+1))
-            # db += 2
-            # n2 = Node(self.Inc[i, 1], self.N[0, int(self.Inc[i, 1]-1)], self.N[1, int(self.Inc[i, 1]-1)], (db, db+1))
-            # db += 2
-            n1 = self.nodes[i % int(self.nn)]
-            n2 = self.nodes[(i+1) % int(self.nn)]
+            n1 = self.nodes[int(self.Inc[i, 0] - 1)]
+            n2 = self.nodes[int(self.Inc[i, 1] - 1)]
             self.elements.append(Element(n1, n2, self.Inc[i, 2], self.Inc[i, 3], i+1))
     
     def calc_global_rigidity_matrix(self) -> np.array:
@@ -117,19 +114,22 @@ class Solver:
         """
         Deletes the rows and columns of the rigidity matrix that correspond to the restrained nodes
         """
-        for i, restrain in enumerate(self.R):
-            K = np.delete(K, int(restrain - i), 1)
-            K = np.delete(K, int(restrain - i), 0)
-        return K
+        R = self.R.astype(int)
+        KgR = np.delete(K, R, axis=0)
+        KgR = np.delete(KgR, R, axis=1)
+        return KgR
 
     def calc_displacement(self, k_g) -> np.array:
         """
         Compute the displacement of the nodes: U = Kg^-1 * F
         """
         F = self.F
-        for i, restrain in enumerate(self.R):
-            F = np.delete(F, int(restrain - i), 0)
-        return np.linalg.solve(k_g, F)
+        R = self.R.astype(int)
+        F = np.delete(F, R)
+        res, err = met_gauss(1e5, 1e-9, k_g, F)
+        print(f"{err =}")
+        # return np.linalg.solve(k_g, F)
+        return res
 
 
     def full_displacement_matrix(self, u) -> np.array:
@@ -173,8 +173,17 @@ class Solver:
             deformations[i] = element.calc_internal_deformation(valores)
         return deformations
 
+    def plot_displacement(self, U):
+        # New node matrix
+        N = np.zeros((2, self.nn))
+        for i in range(self.nn):
+            N[0, i] = self.N[0, i] + U[2 * i]
+            N[1, i] = self.N[1, i] + U[2 * i + 1]
+        plota(N, self.Inc)
+
 
     def solve(self):
+        plota(self.N,self.Inc)
         # Calcula a matriz de rigidez global
         K = self.calc_global_rigidity_matrix()
         # Aplica as condicoes de contorno
@@ -192,11 +201,10 @@ class Solver:
         int_deformations = self.calc_internal_deformations(full_u)
 
         geraSaida(self.out_path, Ft, full_u, int_deformations, int_forces, int_tensions)
-
-            
+        self.plot_displacement(full_u)        
 
 
 
 if __name__ == "__main__":
-    solver = Solver("entrada.xlsx", "saida.txt")
+    solver = Solver("entrada2.xlsx", "saida.txt")
     solver.solve()

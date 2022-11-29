@@ -1,7 +1,9 @@
 from funcoesTermosol import *
 import numpy as np
-from math import degrees
 from metodoJacob_Gauss import met_gauss
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import matplotlib.colors as mcolors
 
 class Node:
     def __init__(self, id, x, y, free_degrees) -> float:
@@ -9,6 +11,10 @@ class Node:
         self.x = x
         self.y = y
         self.free_degrees = free_degrees
+    
+    def display(self, displacement, color='r'):	
+        disp_x, disp_y = displacement
+        plt.plot(self.x + disp_x, self.y + disp_y, 'o', color=color)
 
     def __str__(self) -> str:
         return f'Node({self.id}, x:{self.x}, y:{self.y})'
@@ -21,6 +27,12 @@ class Element:
         self.area = area
         self.id = id
         self.dist = self.calc_dist()
+
+    def display(self, color='r', linewidth=3, line_style='--'):
+        plt.plot(
+            (self.n1.x, self.n2.x), (self.n1.y, self.n2.y), 
+            line_style, color=color, linewidth=linewidth
+        )
     
     def __str__(self) -> str:
         return f"Elemento: {self.n1}<->{self.n2}"
@@ -42,14 +54,6 @@ class Element:
                     [-c*s, -s**2, c*s, s**2]
                 ])
         return ((self.y_modulos * self.area) / self.dist) * M
-
-    def element_indexes(self, nn) -> np.array:
-        indexes_list = []
-        for i in range(self.id * 2 - 2, self.id * 2 + 2):
-            num = i % (nn * 2)
-            indexes_list.append(num)
-        
-        return np.array(indexes_list)
 
     def __calc_internal_tension(self, u) -> float:
         c, s = self.calc_c_s()
@@ -102,7 +106,6 @@ class Solver:
         K = np.zeros((self.nn * 2, self.nn * 2))
         for element in self.elements:
             K_e = element.calc_rigidity_matrix()
-            # element_indexes = element.element_indexes(self.nn)
             element_indexes = element.degrees_of_freedom()
 
             for i, g_i in enumerate(element_indexes):
@@ -174,16 +177,70 @@ class Solver:
         return deformations
 
     def plot_displacement(self, U):
-        # New node matrix
-        N = np.zeros((2, self.nn))
-        for i in range(self.nn):
-            N[0, i] = self.N[0, i] + U[2 * i]
-            N[1, i] = self.N[1, i] + U[2 * i + 1]
-        plota(N, self.Inc)
+        plt.style.use("seaborn-v0_8")
+        _ = plt.figure()
+        # Passa por todos os membros
+        for element in self.elements:
+            element.display()
+            element.n1.display((0, 0))
+            element.n2.display((0, 0))
+            # pos deformacao
+            element.n1.display(U[element.n1.free_degrees, 0], color='b')
+            element.n1.display(U[element.n2.free_degrees, 0], color="b")
+            plt.plot(
+                (element.n1.x + U[element.n1.id - 1], element.n2.x + U[element.n2.id - 1]), 
+                (element.n1.y + U[element.n2.id], element.n2.y + U[element.n2.id]), 
+                '--', color='b', linewidth=3
+            )
+
+        plt.xlabel('x [m]')
+        plt.ylabel('y [m]')
+        red_patch = mpatches.Patch(color='red', label='Antes da aplicação da carga') 
+        blue_patch = mpatches.Patch(color='blue', label='Depois da aplicação da carga')
+        plt.legend(handles=[red_patch, blue_patch])
+        plt.grid(True)
+        plt.axis('equal')
+        plt.savefig("imgs/displacement.png")
+        plt.show()
+
+    def plot_internal_tensions(self, tensions):
+        plt.style.use("seaborn-v0_8")
+        _ = plt.figure()
+        # Scale the color of the element according to the tension
+        for i, element in enumerate(self.elements):
+            plt.plot(
+                (element.n1.x, element.n2.x), 
+                (element.n1.y, element.n2.y), 
+                color='deepskyblue', linewidth=3
+            )
+            # Plot the point too
+            element.n1.display((0, 0), color='black')
+            element.n2.display((0, 0), color='black')
+            ang_1 = (element.n2.y - element.n1.y) / element.dist
+            ang_2 = (element.n2.x - element.n1.x) / element.dist
+
+            plt.text(
+                (element.n1.x + element.n2.x) / 2, 
+                (element.n1.y + element.n2.y) / 2, 
+                f"{tensions[i]:.2e} N",
+                rotation=(180 * np.arctan(ang_1 / ang_2)) / np.pi,
+                color='black',
+                horizontalalignment='center',
+                verticalalignment='center',
+                fontsize=12,
+                rotation_mode='anchor',
+                transform_rotates_text=True
+            )
+        plt.xlabel('x [m]')
+        plt.ylabel('y [m]')
+        plt.title("Tensões internas nos elementos")
+        plt.grid(True)
+        plt.savefig("imgs/tensões_internas.png")
+        plt.show()
+
 
 
     def solve(self):
-        plota(self.N,self.Inc)
         # Calcula a matriz de rigidez global
         K = self.calc_global_rigidity_matrix()
         # Aplica as condicoes de contorno
@@ -201,7 +258,8 @@ class Solver:
         int_deformations = self.calc_internal_deformations(full_u)
 
         geraSaida(self.out_path, Ft, full_u, int_deformations, int_forces, int_tensions)
-        self.plot_displacement(full_u)        
+        self.plot_displacement(full_u)
+        self.plot_internal_tensions(int_tensions)        
 
 
 

@@ -1,6 +1,6 @@
 from funcoesTermosol import *
 import numpy as np
-from metodoJacob_Gauss import met_gauss
+from numeric_method import met_gauss
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors

@@ -5,4 +5,3 @@ Quarta atividade prática supervisionada de Transferência de calor e mecânica 
 ## Grupo:
 - Ricardo Ribeiro Rodrigues
 - Guilherme Fontana Louro
-- Pedro Altobelli

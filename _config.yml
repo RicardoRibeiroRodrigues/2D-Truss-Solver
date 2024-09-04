@@ -1,0 +1,11 @@
+theme: jekyll-theme-minimal
+title: 2D Truss Solver
+description: Quarta atividade prática supervisionada de Transferência de calor e mecânica dos sólidos, com objetivo de fazer um solver para treliças planas.
+show_downloads: True
+navigation:
+  - title: Home
+    url: /
+  - title: Sobre o Projeto
+    url: setup
+  - title: Baixando o Projeto
+    url: project

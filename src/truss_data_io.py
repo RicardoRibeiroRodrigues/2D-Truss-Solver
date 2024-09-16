@@ -22,6 +22,18 @@ class SolverData:
     restraints_number: int
     restraints: np.ndarray
 
+    def __eq__(self, other):
+        if not isinstance(other, SolverData):
+            return False
+        return (self.nodes_number == other.nodes_number and
+                np.allclose(self.nodes, other.nodes) and
+                self.elements_number == other.elements_number and
+                np.allclose(self.incidence, other.incidence) and
+                self.loads_number == other.loads_number and
+                np.allclose(self.loads, other.loads) and
+                self.restraints_number == other.restraints_number and
+                np.allclose(self.restraints, other.restraints))
+
 
 def import_data(input_name) -> SolverData:
     """

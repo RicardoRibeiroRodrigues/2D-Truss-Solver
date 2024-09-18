@@ -149,7 +149,7 @@ class Solver:
             deformations[i] = element.calc_internal_deformation(valores)
         return deformations
 
-    def plot_displacement(self, displacements):
+    def plot_displacement(self, displacements, save_plot: bool):
         """
         Method to plot the displacement of the truss.
         """
@@ -184,10 +184,10 @@ class Solver:
         plt.legend(handles=[red_patch, blue_patch])
         plt.grid(True)
         plt.axis("equal")
-        plt.savefig("imgs/displacement.png", dpi=300)
+        save_plot and plt.savefig("imgs/displacement.png", dpi=300)
         plt.show()
 
-    def plot_internal_tensions(self, tensions):
+    def plot_internal_tensions(self, tensions, save_plot: bool):
         """
         Method to plot the internal tensions in each element.
         """
@@ -218,10 +218,10 @@ class Solver:
         plt.ylabel("y [m]")
         plt.title("Tensões internas nos elementos")
         plt.grid(True)
-        plt.savefig("imgs/tensões_internas.png", dpi=300)
+        save_plot and plt.savefig("imgs/tensões_internas.png", dpi=300)
         plt.show()
 
-    def solve(self, output_path: str) -> None:
+    def solve(self, output_path: str, save_plots: bool = False) -> None:
         """
         Top level method to solve the truss problem.
         """
@@ -251,5 +251,5 @@ class Solver:
             int_forces,
             int_tensions,
         )
-        self.plot_displacement(full_displacement)
-        self.plot_internal_tensions(int_tensions)
+        self.plot_displacement(full_displacement, save_plots)
+        self.plot_internal_tensions(int_tensions, save_plots)

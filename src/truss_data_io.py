@@ -134,7 +134,7 @@ def generate_output(
     Write the output data to a text file.
     """
     output_name = output_name + ".txt"
-    with open("saida.txt", "w+", encoding="utf-8") as f:
+    with open(output_name, "w+", encoding="utf-8") as f:
         f.write("Reacoes de apoio [N]\n")
         f.write(str(reaction_forces))
         f.write("\n\nDeslocamentos [m]\n")
